@@ -21,7 +21,7 @@ impl fmt::Display for Literal {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub enum Expression {
     Assign(AssignmentExpression),
     Binary(BinaryExpression),
@@ -37,82 +37,80 @@ pub enum Expression {
     Variable(VariableExpression),
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct AssignmentExpression {
     name: Token,
     value: Box<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct BinaryExpression {
     pub left: Box<Expression>,
     pub operator: Token,
     pub right: Box<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct CallExpression {
     pub callee: Box<Expression>,
     pub paren: Token,
     pub arguments: Vec<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct GetExpression {
     pub object: Box<Expression>,
     pub name: Token
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct GroupingExpression {
     pub expression: Box<Expression>
 }
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct LiteralExpression {
     pub value: Literal
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct LogicalExpression {
     pub left: Box<Expression>,
     pub operator: Token,
     pub right: Box<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct SetExpression {
     pub object: Box<Expression>,
     pub name: Token,
     pub value: Box<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct SuperExpression {
     pub keyword: Token,
     pub method: Token
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct ThisExpression {
     pub keyword: Token
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct UnaryExpression {
     pub operator: Token,
     pub right: Box<Expression>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct VariableExpression {
     pub name: Token
 }
 
 
-pub mod helpers {
-    use super::*;
-
+impl Expression {
     pub fn assign(name: Token, value: Expression) -> Expression {
         Expression::Assign(AssignmentExpression {
             name,

@@ -1,6 +1,5 @@
 use crate::token::{Token, TokenType, TokenType::*};
-use crate::ast::expressions::*;
-use crate::ast::expressions::helpers::*;
+use crate::ast::{expressions::*, statements::*};
 use crate::error::LoxError;
 
 type ParseResult<T> = Result<T, LoxError>;
@@ -22,7 +21,7 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current >= self.tokens.len()
+        self.current >= self.tokens.len() - 1
     }
 
     fn peek(&self) -> &Token {
@@ -90,8 +89,32 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Expression> {
-        self.expression()
+    pub fn parse(&mut self) -> ParseResult<Vec<Statement>> {
+        let mut statements = Vec::new();
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+        Ok(statements)
+    }
+
+    fn statement(&mut self) -> ParseResult<Statement> {
+        if self.match_token(&[PRINT]) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> ParseResult<Statement> {
+        let expr = self.expression()?;
+        self.consume(SEMICOLON, "Expect ';' after value")?;
+        Ok(Statement::print(expr))
+    }
+
+    fn expression_statement(&mut self) -> ParseResult<Statement> {
+        let expr = self.expression()?;
+        self.consume(SEMICOLON, "Expect ';' after expression")?;
+        Ok(Statement::expression(expr))
     }
 
     fn expression(&mut self) -> ParseResult<Expression> {
@@ -104,7 +127,7 @@ impl Parser {
         while self.match_token(&[BANG_EQUAL, EQUAL_EQUAL]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            expr = binary(expr, operator, right);
+            expr = Expression::binary(expr, operator, right);
         }
 
         Ok(expr)
@@ -116,7 +139,7 @@ impl Parser {
         while self.match_token(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
             let operator = self.previous().clone();
             let right = self.term()?;
-            expr = binary(expr, operator, right);
+            expr = Expression::binary(expr, operator, right);
         }
 
         Ok(expr)
@@ -128,7 +151,7 @@ impl Parser {
         while self.match_token(&[MINUS, PLUS]) {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            expr = binary(expr, operator, right);
+            expr = Expression::binary(expr, operator, right);
         }
 
         Ok(expr)
@@ -140,7 +163,7 @@ impl Parser {
         while self.match_token(&[SLASH, STAR]) {
             let operator = self.previous().clone();
             let right = self.unary()?; // TODO: better error message
-            expr = binary(expr, operator, right);
+            expr = Expression::binary(expr, operator, right);
         }
 
         Ok(expr)
@@ -150,7 +173,7 @@ impl Parser {
         if self.match_token(&[BANG, MINUS]) {
             let operator = self.previous().clone();
             let right = self.unary()?; // TODO: better error message
-            Ok(unary(operator, right))
+            Ok(Expression::unary(operator, right))
         } else {
             self.primary()
         }
@@ -160,20 +183,20 @@ impl Parser {
         let token = self.advance();
 
         match token.token_type {
-            FALSE => Ok(literal(Literal::Boolean(false))),
-            TRUE => Ok(literal(Literal::Boolean(true))),
-            NIL => Ok(literal(Literal::Nil)),
+            FALSE => Ok(Expression::literal(Literal::Boolean(false))),
+            TRUE => Ok(Expression::literal(Literal::Boolean(true))),
+            NIL => Ok(Expression::literal(Literal::Nil)),
             NUMBER => {
                 let value = token.lexeme.parse::<f64>().unwrap();
-                Ok(literal(Literal::Number(value)))
+                Ok(Expression::literal(Literal::Number(value)))
             },
-            STRING => Ok(literal(Literal::String(token.lexeme[1..token.lexeme.len() - 1].to_string()))),
+            STRING => Ok(Expression::literal(Literal::String(token.lexeme[1..token.lexeme.len() - 1].to_string()))),
             LEFT_PAREN => {
                 let line = token.line;
                 let lexeme = token.lexeme.clone();
                 if let Ok(expr) = self.expression() {
                     self.consume(RIGHT_PAREN, "Expect ')' after expression")?;
-                    Ok(grouping(expr))
+                    Ok(Expression::grouping(expr))
                 } else {
                     Err(LoxError::new(line, lexeme, "Expected expression after '('".to_string()))
                 }
@@ -185,8 +208,66 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use crate::ast::expressions::Expression;
+    use crate::ast::statements::Statement;
+    use crate::scanner::Scanner;
     use crate::token::{Token, TokenType::*};
-    use crate::ast::expressions::helpers::*;
+
+    #[test]
+    fn parse() {
+        let tokens = Scanner::new("1 + 2;".to_string()).scan_tokens().0;
+        let expected = vec![
+            Statement::expression(
+                Expression::binary(
+                    Expression::literal(super::Literal::Number(1.0)),
+                    Token::new(PLUS, "+".to_string(), 1),
+                    Expression::literal(super::Literal::Number(2.0))
+                )
+            )
+        ];
+        let mut parser = super::Parser::new(tokens);
+        assert_eq!(expected, parser.parse().unwrap());
+    }
+
+    #[test]
+    fn parse_expression_statement() {
+        let tokens = Scanner::new("1 + 2;".to_string()).scan_tokens().0;
+        let expected = Statement::expression(
+            Expression::binary(
+                Expression::literal(super::Literal::Number(1.0)),
+                Token::new(PLUS, "+".to_string(), 1),
+                Expression::literal(super::Literal::Number(2.0))
+            )
+        );
+        let mut parser = super::Parser::new(tokens);
+        assert_eq!(expected, parser.statement().unwrap());
+    }
+
+    #[test]
+    fn parse_print_statement() {
+        let tokens = Scanner::new("print \"hello \" + \"world!\";".to_string()).scan_tokens().0;
+        let expected = Statement::print(
+            Expression::binary(
+                Expression::literal(super::Literal::String("hello ".to_string())),
+                Token::new(PLUS, "+".to_string(), 1),
+                Expression::literal(super::Literal::String("world!".to_string()))
+            )
+        );
+        let mut parser = super::Parser::new(tokens);
+        assert_eq!(expected, parser.statement().unwrap());
+    }
+
+    #[test]
+    fn parse_factor() {
+        let tokens = Scanner::new("3 * 3".to_string()).scan_tokens().0;
+        let expected = Expression::binary(
+            Expression::literal(super::Literal::Number(3.0)),
+            Token::new(STAR, "*".to_string(), 1),
+            Expression::literal(super::Literal::Number(3.0))
+        );
+        let mut parser = super::Parser::new(tokens);
+        assert_eq!(expected, parser.factor().unwrap());
+    }
 
     #[test]
     fn parse_unary() {
@@ -198,13 +279,13 @@ mod tests {
         ];
         let mut parser = super::Parser::new(tokens);
         let expected = vec![
-            unary(
+            Expression::unary(
                 Token::new(MINUS, "-".to_string(), 1),
-                literal(super::Literal::Number(1.0))
+                Expression::literal(super::Literal::Number(1.0))
             ),
-            unary(
+            Expression::unary(
                 Token::new(BANG, "!".to_string(), 1),
-                literal(super::Literal::Boolean(true))
+                Expression::literal(super::Literal::Boolean(true))
             ),
         ];
         let mut results = Vec::new();
@@ -226,11 +307,11 @@ mod tests {
 
         let mut parser = super::Parser::new(tokens);
         let expected = vec![
-            literal(super::Literal::Boolean(false)),
-            literal(super::Literal::Boolean(true)),
-            literal(super::Literal::Nil),
-            literal(super::Literal::Number(1.0)),
-            literal(super::Literal::String("string".to_string())),
+            Expression::literal(super::Literal::Boolean(false)),
+            Expression::literal(super::Literal::Boolean(true)),
+            Expression::literal(super::Literal::Nil),
+            Expression::literal(super::Literal::Number(1.0)),
+            Expression::literal(super::Literal::String("string".to_string())),
         ];
         let mut results = Vec::new();
         while let Ok(expr) = parser.primary() {

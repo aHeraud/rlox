@@ -60,10 +60,9 @@ impl Lox {
         }
 
         match Parser::new(tokens).parse() {
-            Ok(expression) => {
-                match self.interpreter.interpret(&expression) {
-                    Ok(value) => println!("{}", value),
-                    Err(e) => self.runtime_error(e)
+            Ok(statements) => {
+                if let Err(e) = self.interpreter.interpret(&statements) {
+                    self.runtime_error(e);
                 }
             },
             Err(e) => self.error(e.line, &e.message)

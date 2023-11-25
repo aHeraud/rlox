@@ -1,9 +1,9 @@
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops::Neg;
-use crate::ast::expressions::*;
+use crate::ast::{expressions::*, statements::*};
 use crate::error::RuntimeError;
-use crate::token::{Token, TokenType::*, TokenType};
+use crate::token::{Token, TokenType::*};
 
 pub enum Value {
     Number(f64),
@@ -54,8 +54,15 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&self, expression: &Expression) -> Result<Value,RuntimeError> {
-        expression.evaluate()
+    pub fn interpret(&self, statements: &[Statement]) -> Result<(),RuntimeError> {
+        for statement in statements {
+            statement.evaluate()?;
+        }
+        Ok(())
+    }
+
+    pub fn execute(&mut self, statement: &Statement) -> Result<(),RuntimeError> {
+        statement.evaluate()
     }
 }
 
@@ -69,11 +76,11 @@ fn get_double(operator: &Token, value: &Value) -> Result<f64,RuntimeError> {
     }
 }
 
-trait Evaluate {
-    fn evaluate(&self) -> Result<Value,RuntimeError>;
+trait Evaluate<T> {
+    fn evaluate(&self) -> Result<T,RuntimeError>;
 }
 
-impl Evaluate for LiteralExpression {
+impl Evaluate<Value> for LiteralExpression {
     fn evaluate(&self) -> Result<Value,RuntimeError> {
         Ok(match &self.value {
             Literal::Number(n) => Value::Number(*n),
@@ -84,13 +91,13 @@ impl Evaluate for LiteralExpression {
     }
 }
 
-impl Evaluate for GroupingExpression {
+impl Evaluate<Value> for GroupingExpression {
     fn evaluate(&self) -> Result<Value,RuntimeError> {
         self.expression.evaluate()
     }
 }
 
-impl Evaluate for UnaryExpression {
+impl Evaluate<Value> for UnaryExpression {
     fn evaluate(&self) -> Result<Value,RuntimeError> {
         let right = self.right.evaluate()?;
         match self.operator.token_type {
@@ -104,7 +111,7 @@ impl Evaluate for UnaryExpression {
     }
 }
 
-impl Evaluate for BinaryExpression {
+impl Evaluate<Value> for BinaryExpression {
     fn evaluate(&self) -> Result<Value,RuntimeError> {
         let left = self.left.evaluate()?;
         let right = self.right.evaluate()?;
@@ -140,7 +147,7 @@ impl Evaluate for BinaryExpression {
     }
 }
 
-impl Evaluate for Expression {
+impl Evaluate<Value> for Expression {
     fn evaluate(&self) -> Result<Value,RuntimeError> {
         match self {
             Expression::Literal(l) => l.evaluate(),
@@ -148,6 +155,30 @@ impl Evaluate for Expression {
             Expression::Binary(b) => b.evaluate(),
             Expression::Grouping(g) => g.evaluate(),
             _ => panic!("Unexpected expression") // unreachable
+        }
+    }
+}
+
+impl Evaluate<()> for ExpressionStatement {
+    fn evaluate(&self) -> Result<(),RuntimeError> {
+        self.expression.evaluate()?;
+        Ok(())
+    }
+}
+
+impl Evaluate<()> for PrintStatement {
+    fn evaluate(&self) -> Result<(),RuntimeError> {
+        let value = self.expression.evaluate()?;
+        println!("{}", value);
+        Ok(())
+    }
+}
+
+impl Evaluate<()> for Statement {
+    fn evaluate(&self) -> Result<(),RuntimeError> {
+        match self {
+            Statement::Expression(e) => e.evaluate(),
+            Statement::Print(p) => p.evaluate()
         }
     }
 }
