@@ -1,6 +1,6 @@
 use crate::token::{Token, TokenType, TokenType::*};
 use crate::ast::{expressions::*, statements::*};
-use crate::error::LoxError;
+use crate::error::{LoxError, ParseErrors};
 
 type ParseResult<T> = Result<T, LoxError>;
 
@@ -89,17 +89,53 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Vec<Statement>> {
+    pub fn parse(&mut self) -> Result<Vec<Statement>,ParseErrors> {
         let mut statements = Vec::new();
+        let mut errors = Vec::new();
+
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            match self.declaration() {
+                Ok(statement) => statements.push(statement),
+                Err(e) => errors.push(e)
+            }
         }
-        Ok(statements)
+
+        if errors.len() > 0 {
+            Err(ParseErrors { errors })
+        } else {
+            Ok(statements)
+        }
+    }
+
+    fn declaration(&mut self) -> ParseResult<Statement> {
+        {
+            if self.match_token(&[VAR]) {
+                self.var_declaration()
+            } else {
+                self.statement()
+            }
+        }.or_else(|e| {
+            self.synchronize();
+            Err(e)
+        })
+    }
+
+    fn var_declaration(&mut self) -> ParseResult<Statement> {
+        let name = self.consume(IDENTIFIER, "Expect variable name")?.clone();
+        let initializer = if self.match_token(&[EQUAL]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(SEMICOLON, "Expect ';' after variable declaration")?;
+        Ok(Statement::var(name, initializer))
     }
 
     fn statement(&mut self) -> ParseResult<Statement> {
         if self.match_token(&[PRINT]) {
             self.print_statement()
+        } else if self.match_token(&[LEFT_BRACE]) {
+            self.block().map(|statements|Statement::block(statements))
         } else {
             self.expression_statement()
         }
@@ -117,8 +153,36 @@ impl Parser {
         Ok(Statement::expression(expr))
     }
 
+    fn block(&mut self) -> ParseResult<Vec<Statement>> {
+        let mut statements = Vec::new();
+
+        while !self.check(RIGHT_BRACE) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+
+        self.consume(RIGHT_BRACE, "Expect '}' after block")?;
+        Ok(statements)
+    }
+
     fn expression(&mut self) -> ParseResult<Expression> {
-        self.equality()
+        self.assign()
+    }
+
+    fn assign(&mut self) -> ParseResult<Expression> {
+        let expr = self.equality()?;
+
+        if self.match_token(&[EQUAL]) {
+            let equals = self.previous().clone();
+            let value = self.assign()?;
+
+            if let Expression::Variable(var) = expr {
+                return Ok(Expression::assign(var.name, value));
+            }
+
+            return Err(LoxError::new(equals.line, equals.lexeme, "Invalid assignment target".to_string()));
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> ParseResult<Expression> {
@@ -200,7 +264,8 @@ impl Parser {
                 } else {
                     Err(LoxError::new(line, lexeme, "Expected expression after '('".to_string()))
                 }
-            }
+            },
+            IDENTIFIER => Ok(Expression::variable(token.clone())),
             _ => Err(LoxError::new(token.line, token.lexeme.clone(), "Expected expression".to_string()))
         }
     }

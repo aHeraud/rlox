@@ -65,7 +65,9 @@ impl Lox {
                     self.runtime_error(e);
                 }
             },
-            Err(e) => self.error(e.line, &e.message)
+            Err(e) => {
+                e.errors.iter().for_each(|e|self.error(e.line, &e.message));;;
+            }
         }
     }
 

@@ -39,8 +39,8 @@ pub enum Expression {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct AssignmentExpression {
-    name: Token,
-    value: Box<Expression>
+    pub(crate) name: Token,
+    pub(crate) value: Box<Expression>
 }
 
 #[derive(Clone,Debug,PartialEq)]
