@@ -136,6 +136,12 @@ impl Parser {
             self.print_statement()
         } else if self.match_token(&[LEFT_BRACE]) {
             self.block().map(|statements|Statement::block(statements))
+        } else if self.match_token(&[IF]) {
+            self.if_statement()
+        } else if self.match_token(&[WHILE]) {
+            self.while_statement()
+        } else if self.match_token(&[FOR]) {
+            self.for_statement()
         } else {
             self.expression_statement()
         }
@@ -164,12 +170,73 @@ impl Parser {
         Ok(statements)
     }
 
+    fn if_statement(&mut self) -> ParseResult<Statement> {
+        self.consume(LEFT_PAREN, "Expect '(' after 'if'")?;
+        let condition = self.expression()?;
+        self.consume(RIGHT_PAREN, "Expect ')' after if condition")?;
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.match_token(&[ELSE]) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Statement::if_statement(condition, then_branch, else_branch))
+    }
+
+    fn while_statement(&mut self) -> ParseResult<Statement> {
+        self.consume(LEFT_PAREN, "Expect '(' after 'while'")?;
+        let condition = self.expression()?;
+        self.consume(RIGHT_PAREN, "Expect ')' after while condition")?;
+        let body = Box::new(self.statement()?);
+        Ok(Statement::while_statement(condition, body))
+    }
+
+    fn for_statement(&mut self) -> ParseResult<Statement> {
+        self.consume(LEFT_PAREN, "Expect '(' after 'for'")?;
+
+        let initializer = if self.match_token(&[SEMICOLON]) {
+            None
+        } else if self.match_token(&[VAR]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.check(SEMICOLON) {
+            self.expression()?
+        } else {
+            Expression::literal(Literal::Boolean(true))
+        };
+        self.consume(SEMICOLON, "Expect ';' after loop condition")?;
+
+        let increment = if !self.check(RIGHT_PAREN) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(RIGHT_PAREN, "Expect ')' after for clauses")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(increment) = increment {
+            body = Statement::block(vec![body, Statement::expression(increment)]);
+        }
+
+        body = Statement::while_statement(condition, Box::new(body));
+
+        if let Some(initializer) = initializer {
+            body = Statement::block(vec![initializer, body]);
+        }
+
+        Ok(body)
+    }
+
     fn expression(&mut self) -> ParseResult<Expression> {
         self.assign()
     }
 
     fn assign(&mut self) -> ParseResult<Expression> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.match_token(&[EQUAL]) {
             let equals = self.previous().clone();
@@ -180,6 +247,30 @@ impl Parser {
             }
 
             return Err(LoxError::new(equals.line, equals.lexeme, "Invalid assignment target".to_string()));
+        }
+
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.and()?;
+
+        while self.match_token(&[OR]) {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expression::logical(expr, operator, right);
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.equality()?;
+
+        while self.match_token(&[AND]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expression::logical(expr, operator, right);
         }
 
         Ok(expr)

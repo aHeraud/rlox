@@ -1,18 +1,28 @@
 <program>     ::= <statement>* EOF ;
 
-<declaration> ::= <varDecl> | <statement>;
-<varDecl>   ::= "var" IDENTIFIER ( "=" <expression> )? ";" ;
+<declaration> ::= <var-decl> | <statement>;
+<var-decl>   ::= "var" IDENTIFIER ( "=" <expression> )? ";" ;
 
-<statement>   ::= <exprStmt>
-                | <printStmt>
+<statement>   ::= <expr-stmt>
+                | <print-stmt>
                 | <block>
+                | <if-stmt>
+                | <while-stmt>
+                | <for-stmt>
 <block>       ::= "{" <declaration>* "}" ;
-<exprStmt>    ::= <expression> ";" ;
-<printStmt>   ::= "print" <expression> ";" ;
+<expr-stmt>    ::= <expression> ";" ;
+<print-stmt>   ::= "print" <expression> ";" ;
+<if-stmt>      ::= "if" "(" <expression> ")" <statement> ( "else" <statement> )? ;
+<while-stmt>   ::= "while" "(" <expression> ")" <statement> ;
+<for-stmt>     ::= "for" "(" ( <var-decl> | <expr-stmt> | ";" )
+                    <expression>? ";"
+                    <expression>? ")" <statement> ;
 
 <expression>  ::= <assignment> ;
 <assignment>  ::= IDENTIFIER "=" <assignment>
-                | <equality> ;
+                | <logic-or> ;
+<logic-or>    ::= <logic-or> ( "or" <logic-and> )* ;
+<logic-and>   ::= <equality> ( "and" <equality> )* ;
 <equality>    ::= <comparison> ( ( "!=" | "==" ) <comparison> )* ;
 <comparison>  ::= <term> ( ( ">" | ">=" | "<" | "<=" ) <term> )* ;
 <term>        ::= <factor> ( ( "-" | "+" ) <factor> )* ;

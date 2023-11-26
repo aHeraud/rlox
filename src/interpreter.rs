@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::ops::Neg;
 use crate::ast::{expressions::*, statements::*};
-use crate::error::RuntimeError;
+use crate::error::{LoxError, RuntimeError};
 use crate::token::{Token, TokenType::*};
 
 #[derive(Clone,Debug,PartialEq)]
@@ -205,10 +205,32 @@ impl Evaluate<Value> for BinaryExpression {
 }
 
 impl Evaluate<Value> for VariableExpression {
-    fn evaluate(&self, env: &mut Box<Environment>
-) -> Result<Value,RuntimeError> {
+    fn evaluate(&self, env: &mut Box<Environment>) -> Result<Value,RuntimeError> {
         env.get_var(&self.name)
             .map(|v| v.clone())
+    }
+}
+
+impl Evaluate<Value> for LogicalExpression {
+    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<Value, RuntimeError> {
+        let left = self.left.evaluate(environment)?;
+        match self.operator.token_type {
+            AND => {
+                if left.is_truthy() {
+                    self.right.evaluate(environment)
+                } else {
+                    Ok(Value::Boolean(false))
+                }
+            },
+            OR => {
+                if left.is_truthy() {
+                    Ok(Value::Boolean(true))
+                } else {
+                    self.right.evaluate(environment)
+                }
+            },
+            _ => panic!("Unexpected operator") // unreachable
+        }
     }
 }
 
@@ -222,6 +244,7 @@ impl Evaluate<Value> for Expression {
             Expression::Binary(b) => b.evaluate(env),
             Expression::Grouping(g) => g.evaluate(env),
             Expression::Variable(v) => v.evaluate(env),
+            Expression::Logical(l) => l.evaluate(env),
             _ => panic!("Unexpected expression") // unreachable
         }
     }
@@ -276,6 +299,26 @@ impl Evaluate<()> for BlockStatement {
     }
 }
 
+impl Evaluate<()> for IfStatement {
+    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(), RuntimeError> {
+        if self.condition.evaluate(environment)?.is_truthy() {
+            self.then_branch.evaluate(environment)?;
+        } else if let Some(else_branch) = &self.else_branch {
+            else_branch.evaluate(environment)?;
+        }
+        Ok(())
+    }
+}
+
+impl Evaluate<()> for WhileStatement {
+    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(), RuntimeError> {
+        while self.condition.evaluate(environment)?.is_truthy() {
+            self.body.evaluate(environment)?;
+        }
+        Ok(())
+    }
+}
+
 impl Evaluate<()> for Statement {
     fn evaluate(&self, env: &mut Box<Environment>
 ) -> Result<(),RuntimeError> {
@@ -284,6 +327,8 @@ impl Evaluate<()> for Statement {
             Statement::Print(p) => p.evaluate(env),
             Statement::Var(v) => v.evaluate(env),
             Statement::Block(b) => b.evaluate(env),
+            Statement::If(i) => i.evaluate(env),
+            Statement::While(w) => w.evaluate(env),
         }
     }
 }

@@ -7,6 +7,8 @@ pub enum Statement {
     Print(PrintStatement),
     Var(VarStatement),
     Block(BlockStatement),
+    If(IfStatement),
+    While(WhileStatement),
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -30,6 +32,19 @@ pub struct BlockStatement {
     pub statements: Vec<Statement>
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct IfStatement {
+    pub condition: Expression,
+    pub then_branch: Box<Statement>,
+    pub else_branch: Option<Box<Statement>>
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct WhileStatement {
+    pub condition: Expression,
+    pub body: Box<Statement>,
+}
+
 impl Statement {
     pub fn expression(expression: Expression) -> Statement {
         Statement::Expression(ExpressionStatement { expression })
@@ -45,5 +60,17 @@ impl Statement {
 
     pub fn block(statements: Vec<Statement>) -> Statement {
         Statement::Block(BlockStatement { statements })
+    }
+
+    pub fn if_statement(
+        condition: Expression,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>
+    ) -> Statement {
+        Statement::If(IfStatement { condition, then_branch, else_branch })
+    }
+
+    pub fn while_statement(condition: Expression, body: Box<Statement>) -> Statement {
+        Statement::While(WhileStatement { condition, body })
     }
 }
