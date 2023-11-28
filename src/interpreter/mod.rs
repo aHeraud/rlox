@@ -1,15 +1,15 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Neg;
 use std::rc::Rc;
 use crate::ast::statements::*;
 use crate::error::RuntimeError;
-use crate::token::{Token, TokenType::*};
+use crate::interpreter::environment::Environment;
+use crate::token::Token;
 
 mod expressions;
 mod statements;
+mod environment;
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum Value {
@@ -40,7 +40,7 @@ impl Value {
     }
 }
 
-impl fmt::Display for Value {
+impl Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Value::Boolean(b) => write!(f, "{}", b),
@@ -55,7 +55,7 @@ impl fmt::Display for Value {
 pub trait Function: Debug {
     fn arity(&self) -> usize;
     fn name(&self) -> &str;
-    fn call(&self, environment: &mut Environment, arguments: &[Value]) -> Result<Value,RuntimeError>;
+    fn call(&self, arguments: &[Value]) -> Result<Value, RuntimeError>;
 }
 
 impl PartialEq for dyn Function {
@@ -70,29 +70,36 @@ impl Display for dyn Function {
     }
 }
 
-impl Function for FunctionStatement {
+struct Closure {
+    function: FunctionStatement,
+    environment: Environment,
+}
+
+impl Debug for Closure {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "<fn {}>", self.function.name)
+    }
+}
+
+impl Function for Closure {
     fn arity(&self) -> usize {
-        self.params.len()
+        self.function.params.len()
     }
 
     fn name(&self) -> &str {
-        &self.name.lexeme
+        &self.function.name.lexeme
     }
 
-    fn call(&self, environment: &mut Environment, arguments: &[Value]) -> Result<Value,RuntimeError> {
-        // Create a new environment for the function, which is a child of the root (e
-        let mut global = Box::new(Environment::default());
-        std::mem::swap(global.as_mut(), environment.root());
-        let mut env = Box::new(Environment::new());
-        env.enclosing = Some(global);
+    fn call(&self, arguments: &[Value]) -> Result<Value,RuntimeError> {
+        let mut env = Environment::new().with_enclosing(self.environment.clone());
 
         // Define the function parameters in the new environment
-        for (param, arg) in self.params.iter().zip(arguments.iter()) {
+        for (param, arg) in self.function.params.iter().zip(arguments.iter()) {
             env.define(&param.lexeme, arg.clone());
         }
 
-        let result = match (|| {
-            for statement in &self.body {
+        match (|| {
+            for statement in &self.function.body {
                 statement.evaluate(&mut env)?;
             }
             Ok(())
@@ -100,76 +107,18 @@ impl Function for FunctionStatement {
             Ok(()) => Ok(Value::Nil),
             Err(InterpreterError::Return(_t, v)) => Ok(v),
             Err(InterpreterError::Runtime(e)) => Err(e),
-        };
-
-        // Undo the changes to the environment.
-        let mut global = std::mem::replace(&mut env.enclosing, None);
-        std::mem::swap(environment.root(), &mut global.unwrap());
-
-        // If the function returns a value, return it. Otherwise return nil.
-        result
-    }
-}
-
-#[derive(Default,Debug)]
-pub struct Environment {
-    enclosing: Option<Box<Environment>>,
-    values: HashMap<String,Value>,
-}
-
-impl Environment {
-    pub fn new() -> Environment {
-        Environment::default()
-    }
-
-    pub fn define(&mut self, name: &str, value: Value) {
-        self.values.insert(name.to_string(), value);
-    }
-
-    pub fn assign(&mut self, name: &Token, value: Value) -> Result<(),RuntimeError> {
-        if self.values.contains_key(&name.lexeme) {
-            self.values.insert(name.lexeme.clone(), value);
-            Ok(())
-        } else if let Some(parent) = &mut self.enclosing {
-            parent.assign(name, value)
-        } else {
-            Err(RuntimeError::new(
-                name.clone(),
-                format!("Undefined variable '{}'", name.lexeme)
-            ))
-        }
-    }
-
-    pub fn get_var(&mut self, name: &Token) -> Result<&mut Value,RuntimeError> {
-        if let Some(value) = self.values.get_mut(&name.lexeme) {
-            Ok(value)
-        } else if let Some(parent) = &mut self.enclosing {
-            parent.get_var(name)
-        } else {
-            Err(RuntimeError::new(
-                name.clone(),
-                format!("Undefined variable '{}'", name.lexeme)
-            ))
-        }
-    }
-
-    pub fn root(&mut self) -> &mut Environment {
-        if self.enclosing.is_none() {
-            return self;
-        } else {
-            self.enclosing.as_mut().unwrap().root()
         }
     }
 }
 
 pub struct Interpreter {
-    environment: Box<Environment>,
+    environment: Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Box::new(Environment::new())
+            environment: Environment::new()
         }
     }
 
@@ -197,7 +146,7 @@ impl From<InterpreterError> for RuntimeError {
     fn from(e: InterpreterError) -> Self {
         match e {
             InterpreterError::Runtime(e) => e,
-            InterpreterError::Return(t,v) => RuntimeError::new(t, format!("Unexpected return"))
+            InterpreterError::Return(t, _) => RuntimeError::new(t, format!("Unexpected return"))
         }
     }
 }
@@ -214,5 +163,5 @@ impl Display for InterpreterError {
 impl Error for InterpreterError {}
 
 trait Evaluate<T> {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<T,InterpreterError>;
+    fn evaluate(&self, environment: &mut Environment) -> Result<T,InterpreterError>;
 }

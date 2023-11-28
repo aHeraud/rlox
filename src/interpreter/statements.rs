@@ -1,20 +1,19 @@
+use std::cell::UnsafeCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use crate::ast::statements::*;
-use crate::error::RuntimeError;
 use crate::token::TokenType::*;
-use super::{Value, Environment, Evaluate, InterpreterError};
+use super::{Value, Environment, Evaluate, InterpreterError, Closure};
 
 impl Evaluate<()> for ExpressionStatement {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<(),InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
         self.expression.evaluate(env)?;
         Ok(())
     }
 }
 
 impl Evaluate<()> for PrintStatement {
-    fn evaluate(&self, env: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
         let value = self.expression.evaluate(env)?;
         println!("{}", value);
         Ok(())
@@ -22,7 +21,7 @@ impl Evaluate<()> for PrintStatement {
 }
 
 impl Evaluate<()> for VarStatement {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
         let value = match &self.initializer {
             Some(e) => e.evaluate(environment)?,
             None => Value::Nil
@@ -33,28 +32,22 @@ impl Evaluate<()> for VarStatement {
 }
 
 impl Evaluate<()> for BlockStatement {
-    fn evaluate<'a>(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
-        // swap out the environment for a new one
-        let parent = std::mem::replace(environment, Box::new(Environment::new()));
-        environment.enclosing = Some(parent);
+    fn evaluate<'a>(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
+        let mut environment = Environment::new().with_enclosing(environment.clone());
 
         let result = (|| {
             for statement in &self.statements {
-                statement.evaluate(environment)?;
+                statement.evaluate(&mut environment)?;
             }
             Ok(())
         })();
-
-        // swap the environment back
-        let parent = std::mem::replace(&mut environment.enclosing, None);
-        std::mem::swap(environment, &mut parent.unwrap());
 
         result
     }
 }
 
 impl Evaluate<()> for IfStatement {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
         if self.condition.evaluate(environment)?.is_truthy() {
             self.then_branch.evaluate(environment)?;
         } else if let Some(else_branch) = &self.else_branch {
@@ -65,7 +58,7 @@ impl Evaluate<()> for IfStatement {
 }
 
 impl Evaluate<()> for WhileStatement {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
         while self.condition.evaluate(environment)?.is_truthy() {
             self.body.evaluate(environment)?;
         }
@@ -74,14 +67,18 @@ impl Evaluate<()> for WhileStatement {
 }
 
 impl Evaluate<()> for FunctionStatement {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
-        environment.define(&self.name.lexeme, Value::Function(Rc::new(Box::new(self.clone()))));
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
+        let closure = Box::new(Closure {
+            function: self.clone(),
+            environment: environment.clone(),
+        });
+        environment.define(&self.name.lexeme, Value::Function(Rc::new(closure)));
         Ok(())
     }
 }
 
 impl Evaluate<()> for ReturnStatement {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
         let value = match &self.value {
             Some(e) => e.evaluate(environment)?,
             None => Value::Nil
@@ -91,7 +88,7 @@ impl Evaluate<()> for ReturnStatement {
 }
 
 impl Evaluate<()> for Statement {
-    fn evaluate(&self, env: &mut Box<Environment>) -> Result<(),InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
         match self {
             Statement::Expression(e) => e.evaluate(env),
             Statement::Print(p) => p.evaluate(env),

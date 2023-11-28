@@ -66,7 +66,7 @@ impl Lox {
                 }
             },
             Err(e) => {
-                e.errors.iter().for_each(|e|self.error(e.line, &e.message));;;
+                e.errors.iter().for_each(|e|self.error(e.line, &e.message));
             }
         }
     }

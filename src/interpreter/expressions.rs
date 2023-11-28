@@ -5,7 +5,7 @@ use crate::error::RuntimeError;
 use crate::token::{Token, TokenType::*};
 use super::{Value, Environment, Function, Evaluate, InterpreterError};
 
-fn get_double(operator: &Token, value: &Value) -> Result<f64,InterpreterError> {
+fn get_double(operator: &Token, value: &Value) -> Result<f64, InterpreterError> {
     match value {
         Value::Number(n) => Ok(*n),
         _ => Err(RuntimeError::new(
@@ -17,7 +17,7 @@ fn get_double(operator: &Token, value: &Value) -> Result<f64,InterpreterError> {
 
 
 impl Evaluate<Value> for LiteralExpression {
-    fn evaluate(&self, _: &mut Box<Environment>) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, _: &mut Environment) -> Result<Value, InterpreterError> {
         Ok(match &self.value {
             Literal::Number(n) => Value::Number(*n),
             Literal::String(s) => Value::String(s.clone()),
@@ -28,8 +28,7 @@ impl Evaluate<Value> for LiteralExpression {
 }
 
 impl Evaluate<Value> for AssignmentExpression {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         let value = self.value.evaluate(env)?;
         env.assign(&self.name, value.clone())?;
         Ok(value)
@@ -37,15 +36,13 @@ impl Evaluate<Value> for AssignmentExpression {
 }
 
 impl Evaluate<Value> for GroupingExpression {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         self.expression.evaluate(env)
     }
 }
 
 impl Evaluate<Value> for UnaryExpression {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         let right = self.right.evaluate(env)?;
         match self.operator.token_type {
             MINUS => {
@@ -59,8 +56,7 @@ impl Evaluate<Value> for UnaryExpression {
 }
 
 impl Evaluate<Value> for BinaryExpression {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         let left = self.left.evaluate(env)?;
         let right = self.right.evaluate(env)?;
 
@@ -96,7 +92,7 @@ impl Evaluate<Value> for BinaryExpression {
 }
 
 impl Evaluate<Value> for VariableExpression {
-    fn evaluate(&self, env: &mut Box<Environment>) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         env.get_var(&self.name)
             .map_err(|e| e.into())
             .map(|v| v.clone())
@@ -104,7 +100,7 @@ impl Evaluate<Value> for VariableExpression {
 }
 
 impl Evaluate<Value> for LogicalExpression {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         let left = self.left.evaluate(environment)?;
         match self.operator.token_type {
             AND => {
@@ -127,7 +123,7 @@ impl Evaluate<Value> for LogicalExpression {
 }
 
 impl Evaluate<Value> for CallExpression {
-    fn evaluate(&self, environment: &mut Box<Environment>) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         let callee = self.callee.evaluate(environment)?;
         let mut arguments = Vec::new();
         for argument in &self.arguments {
@@ -142,7 +138,7 @@ impl Evaluate<Value> for CallExpression {
                         format!("Expected {} arguments but got {}", fun.arity(), arguments.len())
                     ).into());
                 }
-                fun.call(environment, &arguments).map_err(|e| e.into())
+                fun.call(&arguments).map_err(|e| e.into())
             },
             _ => Err(RuntimeError::new(
                 self.paren.clone(),
@@ -153,8 +149,7 @@ impl Evaluate<Value> for CallExpression {
 }
 
 impl Evaluate<Value> for Expression {
-    fn evaluate(&self, env: &mut Box<Environment>
-    ) -> Result<Value,InterpreterError> {
+    fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         match self {
             Expression::Assign(a) => a.evaluate(env),
             Expression::Literal(l) => l.evaluate(env),
