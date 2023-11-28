@@ -45,7 +45,6 @@ impl Display for ParseErrors {
 
 impl Error for ParseErrors {}
 
-
 #[derive(Debug)]
 pub struct RuntimeError {
     pub token: Token,

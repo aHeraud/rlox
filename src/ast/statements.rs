@@ -9,6 +9,8 @@ pub enum Statement {
     Block(BlockStatement),
     If(IfStatement),
     While(WhileStatement),
+    Function(FunctionStatement),
+    Return(ReturnStatement),
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -45,6 +47,19 @@ pub struct WhileStatement {
     pub body: Box<Statement>,
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct FunctionStatement {
+    pub name: Token,
+    pub params: Vec<Token>,
+    pub body: Vec<Statement>
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct ReturnStatement {
+    pub keyword: Token,
+    pub value: Option<Expression>
+}
+
 impl Statement {
     pub fn expression(expression: Expression) -> Statement {
         Statement::Expression(ExpressionStatement { expression })
@@ -72,5 +87,13 @@ impl Statement {
 
     pub fn while_statement(condition: Expression, body: Box<Statement>) -> Statement {
         Statement::While(WhileStatement { condition, body })
+    }
+
+    pub fn function(name: Token, params: Vec<Token>, body: Vec<Statement>) -> Statement {
+        Statement::Function(FunctionStatement { name, params, body })
+    }
+
+    pub fn return_statement(keyword: Token, value: Option<Expression>) -> Statement {
+        Statement::Return(ReturnStatement { keyword, value })
     }
 }

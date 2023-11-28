@@ -1,6 +1,8 @@
 <program>     ::= <statement>* EOF ;
 
-<declaration> ::= <var-decl> | <statement>;
+<declaration> ::= <fun-decl> | <var-decl> | <statement>;
+<fun-decl>    ::= "fun" IDENTIFIER "(" <parameters>? ")" <block> ;
+<parameters>  ::= IDENTIFIER ( "," IDENTIFIER )* ;
 <var-decl>   ::= "var" IDENTIFIER ( "=" <expression> )? ";" ;
 
 <statement>   ::= <expr-stmt>
@@ -9,6 +11,7 @@
                 | <if-stmt>
                 | <while-stmt>
                 | <for-stmt>
+                | <return-stmt> ;
 <block>       ::= "{" <declaration>* "}" ;
 <expr-stmt>    ::= <expression> ";" ;
 <print-stmt>   ::= "print" <expression> ";" ;
@@ -17,6 +20,7 @@
 <for-stmt>     ::= "for" "(" ( <var-decl> | <expr-stmt> | ";" )
                     <expression>? ";"
                     <expression>? ")" <statement> ;
+<return-stmt>  ::= "return" <expression>? ";" ;
 
 <expression>  ::= <assignment> ;
 <assignment>  ::= IDENTIFIER "=" <assignment>
@@ -28,7 +32,8 @@
 <term>        ::= <factor> ( ( "-" | "+" ) <factor> )* ;
 <factor>      ::= <unary> ( ( "/" | "*" ) <unary> )* ;
 <unary>       ::= ( "!" | "-" ) <unary>
-                | primary ;
+                | call ;
+<call>        ::= primary ( "(" arguments? ")" )* ;
 <primary>     ::= NUMBER | STRING | "true" | "false" | "nil"
                 | "(" expression ")"
                 | IDENTIFIER ;

@@ -111,6 +111,8 @@ impl Parser {
         {
             if self.match_token(&[VAR]) {
                 self.var_declaration()
+            } else if self.match_token(&[FUN]) {
+                self.fun_declaration()
             } else {
                 self.statement()
             }
@@ -131,6 +133,27 @@ impl Parser {
         Ok(Statement::var(name, initializer))
     }
 
+    fn fun_declaration(&mut self) -> ParseResult<Statement> {
+        let name = self.consume(IDENTIFIER, "Expect function name")?.clone();
+        self.consume(LEFT_PAREN, "Expect '(' after function name")?;
+        let mut params = Vec::new();
+        if !self.check(RIGHT_PAREN) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(LoxError::new(self.peek().line, "".to_string(), "Cannot have more than 255 parameters".to_string()));
+                }
+                params.push(self.consume(IDENTIFIER, "Expect parameter name")?.clone());
+                if !self.match_token(&[COMMA]) {
+                    break;
+                }
+            }
+        }
+        self.consume(RIGHT_PAREN, "Expect ')' after parameters")?;
+        self.consume(LEFT_BRACE, "Expect '{' before function body")?;
+        let body = self.block()?;
+        Ok(Statement::function(name, params, body))
+    }
+
     fn statement(&mut self) -> ParseResult<Statement> {
         if self.match_token(&[PRINT]) {
             self.print_statement()
@@ -142,6 +165,8 @@ impl Parser {
             self.while_statement()
         } else if self.match_token(&[FOR]) {
             self.for_statement()
+        } else if self.match_token(&[RETURN]) {
+            self.return_statement()
         } else {
             self.expression_statement()
         }
@@ -229,6 +254,17 @@ impl Parser {
         }
 
         Ok(body)
+    }
+
+    fn return_statement(&mut self) -> ParseResult<Statement> {
+        let keyword = self.previous().clone();
+        let value = if !self.check(SEMICOLON) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(SEMICOLON, "Expect ';' after return value")?;
+        Ok(Statement::return_statement(keyword, value))
     }
 
     fn expression(&mut self) -> ParseResult<Expression> {
@@ -330,8 +366,37 @@ impl Parser {
             let right = self.unary()?; // TODO: better error message
             Ok(Expression::unary(operator, right))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.primary()?;
+
+        if self.match_token(&[LEFT_PAREN]) {
+            expr = self.finish_call(expr)?;
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expression) -> ParseResult<Expression> {
+        let mut arguments = Vec::new();
+
+        if !self.check(RIGHT_PAREN) {
+            loop {
+                if arguments.len() >= 255 {
+                    return Err(LoxError::new(self.peek().line, "".to_string(), "Cannot have more than 255 arguments".to_string()));
+                }
+                arguments.push(self.expression()?);
+                if !self.match_token(&[COMMA]) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(RIGHT_PAREN, "Expect ')' after arguments")?;
+        Ok(Expression::call(callee, paren.clone(), arguments))
     }
 
     fn primary(&mut self) -> ParseResult<Expression> {
@@ -383,6 +448,20 @@ mod tests {
         ];
         let mut parser = super::Parser::new(tokens);
         assert_eq!(expected, parser.parse().unwrap());
+    }
+
+    #[test]
+    fn parse_function_call() {
+        let tokens = Scanner::new("foo();".to_string()).scan_tokens().0;
+        let expected = Statement::expression(
+            Expression::call(
+                Expression::variable(Token::new(IDENTIFIER, "foo".to_string(), 1)),
+                Token::new(RIGHT_PAREN, ")".to_string(), 1),
+                Vec::new()
+            )
+        );
+        let mut parser = super::Parser::new(tokens);
+        assert_eq!(expected, parser.statement().unwrap());
     }
 
     #[test]
