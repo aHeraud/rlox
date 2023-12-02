@@ -1,9 +1,8 @@
-use std::fmt::{Debug, Display};
 use std::ops::Neg;
 use crate::ast::expressions::*;
 use crate::error::RuntimeError;
 use crate::token::{Token, TokenType::*};
-use super::{Value, Environment, Function, Evaluate, InterpreterError};
+use super::{Value, Environment, Evaluate, InterpreterError};
 
 fn get_double(operator: &Token, value: &Value) -> Result<f64, InterpreterError> {
     match value {
@@ -14,7 +13,6 @@ fn get_double(operator: &Token, value: &Value) -> Result<f64, InterpreterError> 
         ).into())
     }
 }
-
 
 impl Evaluate<Value> for LiteralExpression {
     fn evaluate(&self, _: &mut Environment) -> Result<Value, InterpreterError> {

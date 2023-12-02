@@ -4,6 +4,7 @@ mod error;
 mod parser;
 mod ast;
 mod interpreter;
+mod resolver;
 
 use std::path::Path;
 use std::process::exit;
@@ -13,6 +14,7 @@ use std::io::{stdin, stdout, Write};
 use scanner::Scanner;
 use crate::interpreter::Interpreter;
 use crate::parser::Parser;
+use crate::resolver::Resolver;
 
 struct Lox {
     had_error: bool,
@@ -61,8 +63,15 @@ impl Lox {
 
         match Parser::new(tokens).parse() {
             Ok(statements) => {
-                if let Err(e) = self.interpreter.interpret(&statements) {
-                    self.runtime_error(e);
+                match Resolver::new().resolve(statements) {
+                    Ok(program) => {
+                        if let Err(e) = self.interpreter.interpret(&program) {
+                            self.runtime_error(e);
+                        }
+                    },
+                    Err(err) => {
+                        self.error(err.line, &err.message);
+                    }
                 }
             },
             Err(e) => {
@@ -88,7 +97,7 @@ impl Lox {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 {
+    if args.len() > 2 {
         println!("Usage: lox [script]");
         exit(64)
     } else {

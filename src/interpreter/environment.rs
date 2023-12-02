@@ -14,7 +14,7 @@ impl Environment {
         Self(Rc::new(UnsafeCell::new(InternalEnvironment::new())))
     }
 
-    pub fn with_enclosing(mut self, parent: Environment) -> Self {
+    pub fn with_enclosing(self, parent: Environment) -> Self {
         self.get_mut().enclosing = Some(parent);
         self
     }

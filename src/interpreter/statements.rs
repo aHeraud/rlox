@@ -1,8 +1,5 @@
-use std::cell::UnsafeCell;
-use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use crate::ast::statements::*;
-use crate::token::TokenType::*;
 use super::{Value, Environment, Evaluate, InterpreterError, Closure};
 
 impl Evaluate<()> for ExpressionStatement {

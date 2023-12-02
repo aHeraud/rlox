@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::token::Token;
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     String(String),
     Number(f64),
