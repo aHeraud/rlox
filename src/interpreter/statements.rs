@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 use crate::ast::statements::*;
-use super::{Value, Environment, Evaluate, InterpreterError, Closure};
+use crate::interpreter::function::Closure;
+use crate::interpreter::value::ClassDefinition;
+use crate::interpreter::value::Value::Class;
+use super::{Value, Environment, Evaluate, InterpreterError, value};
 
 impl Evaluate<()> for ExpressionStatement {
     fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
@@ -40,6 +44,23 @@ impl Evaluate<()> for BlockStatement {
         })();
 
         result
+    }
+}
+
+impl Evaluate<()> for ClassStatement {
+    fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
+        let mut methods: HashMap<String, Rc<Box<Closure>>> = HashMap::new();
+        for method in &self.methods {
+            let closure = Box::new(Closure {
+                function: method.clone(),
+                environment: environment.clone(),
+            });
+            methods.insert(method.name.lexeme.clone(), Rc::new(closure));
+        }
+
+        let class = value::Class::new(self.name.lexeme.clone(), methods);
+        environment.define(&self.name.lexeme, Class(ClassDefinition::new(Rc::new(class))));
+        Ok(())
     }
 }
 
@@ -87,14 +108,15 @@ impl Evaluate<()> for ReturnStatement {
 impl Evaluate<()> for Statement {
     fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
         match self {
-            Statement::Expression(e) => e.evaluate(env),
-            Statement::Print(p) => p.evaluate(env),
-            Statement::Var(v) => v.evaluate(env),
             Statement::Block(b) => b.evaluate(env),
-            Statement::If(i) => i.evaluate(env),
-            Statement::While(w) => w.evaluate(env),
+            Statement::Class(class) => class.evaluate(env),
+            Statement::Expression(e) => e.evaluate(env),
             Statement::Function(f) => f.evaluate(env),
+            Statement::If(i) => i.evaluate(env),
+            Statement::Print(p) => p.evaluate(env),
             Statement::Return(r) => r.evaluate(env),
+            Statement::Var(v) => v.evaluate(env),
+            Statement::While(w) => w.evaluate(env),
         }
     }
 }

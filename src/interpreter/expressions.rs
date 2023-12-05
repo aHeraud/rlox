@@ -1,6 +1,7 @@
 use std::ops::Neg;
 use crate::ast::expressions::*;
 use crate::error::RuntimeError;
+use crate::interpreter::function::Function;
 use crate::token::{Token, TokenType::*};
 use super::{Value, Environment, Evaluate, InterpreterError};
 
@@ -138,6 +139,7 @@ impl Evaluate<Value> for CallExpression {
                 }
                 fun.call(&arguments).map_err(|e| e.into())
             },
+            Value::Class(class) => class.call(&arguments).map_err(|e| e.into()),
             _ => Err(RuntimeError::new(
                 self.paren.clone(),
                 "Can only call functions and classes".to_string()
@@ -146,17 +148,60 @@ impl Evaluate<Value> for CallExpression {
     }
 }
 
+impl Evaluate<Value> for GetExpression {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+        let object = self.object.evaluate(environment)?;
+        match object {
+            Value::Instance(instance) => {
+                instance.get(&self.name).map_err(|e| e.into())
+            },
+            _ => Err(RuntimeError::new(
+                self.name.clone(),
+                "Only instances have properties".to_string()
+            ).into())
+        }
+    }
+}
+
+impl Evaluate<Value> for SetExpression {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+        let object = self.object.evaluate(environment)?;
+        match object {
+            Value::Instance(instance) => {
+                let value = self.value.evaluate(environment)?;
+                instance.set(&self.name, value.clone());
+                Ok(value)
+            },
+            _ => Err(RuntimeError::new(
+                self.name.clone(),
+                "Only instances have fields".to_string()
+            ).into())
+        }
+    }
+}
+
+impl Evaluate<Value> for ThisExpression {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+        environment.get_var(&self.keyword)
+            .map(|v| v.clone())
+            .map_err(|e| e.into())
+    }
+}
+
 impl Evaluate<Value> for Expression {
     fn evaluate(&self, env: &mut Environment) -> Result<Value, InterpreterError> {
         match self {
             Expression::Assign(a) => a.evaluate(env),
-            Expression::Literal(l) => l.evaluate(env),
-            Expression::Unary(u) => u.evaluate(env),
             Expression::Binary(b) => b.evaluate(env),
+            Expression::Call(c) => c.evaluate(env),
+            Expression::Get(g) => g.evaluate(env),
             Expression::Grouping(g) => g.evaluate(env),
+            Expression::Literal(l) => l.evaluate(env),
+            Expression::Set(s) => s.evaluate(env),
+            Expression::This(t) => t.evaluate(env),
+            Expression::Unary(u) => u.evaluate(env),
             Expression::Variable(v) => v.evaluate(env),
             Expression::Logical(l) => l.evaluate(env),
-            Expression::Call(c) => c.evaluate(env),
             _ => panic!("Unexpected expression") // unreachable
         }
     }

@@ -3,6 +3,7 @@ use crate::token::Token;
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum Statement {
+    Class(ClassStatement),
     Expression(ExpressionStatement),
     Print(PrintStatement),
     Var(VarStatement),
@@ -11,6 +12,12 @@ pub enum Statement {
     While(WhileStatement),
     Function(FunctionStatement),
     Return(ReturnStatement),
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct ClassStatement {
+    pub name: Token,
+    pub methods: Vec<FunctionStatement>,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -61,6 +68,10 @@ pub struct ReturnStatement {
 }
 
 impl Statement {
+    pub fn class(name: Token, methods: Vec<FunctionStatement>) -> Statement {
+        Statement::Class(ClassStatement { name, methods })
+    }
+
     pub fn expression(expression: Expression) -> Statement {
         Statement::Expression(ExpressionStatement { expression })
     }

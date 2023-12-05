@@ -71,6 +71,12 @@ impl Resolver {
     }
 
     fn declare_var(&mut self, name: &mut Token) -> Result<(), LoxError> {
+        if self.scopes.len() <= 1 {
+            // Anything goes in the global scope
+            self.register(&name.lexeme, &name.lexeme);
+            return Ok(())
+        }
+
         if let Some((_name, ancestor)) = self.resolve_var(&name.lexeme) {
             // This variable shadows another variable
             if ancestor == 0 {
@@ -118,6 +124,7 @@ impl Resolve for Statement {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         match self {
             Statement::Block(block) => block.resolve(resolver),
+            Statement::Class(class) => class.resolve(resolver),
             Statement::Expression(expression) => expression.resolve(resolver),
             Statement::Function(function) => function.resolve(resolver),
             Statement::If(if_statement) => if_statement.resolve(resolver),
@@ -142,6 +149,23 @@ impl Resolve for BlockStatement {
     }
 }
 
+impl Resolve for ClassStatement {
+    fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
+        resolver.declare_var(&mut self.name)?;
+
+        resolver.push_scope();
+        resolver.register("this", "this");
+
+        for method in self.methods.iter_mut() {
+            method.resolve(resolver)?;
+        }
+
+        resolver.pop_scope();
+
+        Ok(())
+    }
+}
+
 impl Resolve for ExpressionStatement {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         self.expression.resolve(resolver)
@@ -152,9 +176,15 @@ impl Resolve for FunctionStatement {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         resolver.declare_var(&mut self.name)?;
 
+        resolver.push_scope();
+        for param in &mut self.params {
+            resolver.declare_var(param)?;
+        }
+
         for statement in &mut self.body {
             statement.resolve(resolver)?;
         }
+        resolver.pop_scope();
 
         Ok(())
     }
@@ -216,6 +246,8 @@ impl Resolve for Expression {
             Expression::Grouping(expr) => expr.resolve(resolver),
             Expression::Literal(expr) => expr.resolve(resolver),
             Expression::Logical(expr) => expr.resolve(resolver),
+            Expression::Set(expr) => expr.resolve(resolver),
+            Expression::This(expr) => expr.resolve(resolver),
             Expression::Unary(expr) => expr.resolve(resolver),
             Expression::Variable(expr) => expr.resolve(resolver),
             _ => panic!("Unexpected expression type"),
@@ -256,8 +288,15 @@ impl Resolve for CallExpression {
 }
 
 impl Resolve for GetExpression {
-    fn resolve(&mut self, _resolver: &mut Resolver) -> Result<(), LoxError> {
-        todo!()
+    fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
+        self.object.resolve(resolver)
+    }
+}
+
+impl Resolve for SetExpression {
+    fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
+        self.object.resolve(resolver)?;
+        self.value.resolve(resolver)
     }
 }
 
@@ -277,6 +316,17 @@ impl Resolve for LogicalExpression {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         self.left.resolve(resolver)?;
         self.right.resolve(resolver)
+    }
+}
+
+impl Resolve for ThisExpression {
+    fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
+        if let Some((name, _)) = resolver.resolve_var("this") {
+            self.keyword.lexeme = name.to_string();
+            Ok(())
+        } else {
+            Err(LoxError::new(self.keyword.line, "".to_string(), "Cannot use 'this' outside of a class".to_string()))
+        }
     }
 }
 
@@ -332,6 +382,33 @@ mod tests {
         let dec2 = declaration(&block(&program[1]).statements[0]);
         assert_eq!(dec2.name.lexeme, "x#1");
         assert_eq!(var(&dec2.initializer.as_ref().unwrap()).name.lexeme, "x");
+    }
+
+    #[test]
+    fn class_with_initializer() {
+        Resolver::new().resolve(
+            ast(r#"
+                class Foo {
+                    init(bar) {
+                        this.bar = bar;
+                    }
+                }
+                Foo(42);
+                "#)
+        ).unwrap();
+    }
+
+    #[test]
+    fn allow_shadowing_in_the_global_scope() {
+        let program = Resolver::new().resolve(
+            ast(r#"
+                var x = 1;
+                var x = 2;
+                "#)
+        ).unwrap();
+
+        assert_eq!(declaration(&program[0]).name.lexeme, "x");
+        assert_eq!(declaration(&program[1]).name.lexeme, "x");
     }
 
     fn ast(source: &str) -> Vec<Statement> {

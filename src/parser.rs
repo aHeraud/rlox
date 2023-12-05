@@ -109,10 +109,12 @@ impl Parser {
 
     fn declaration(&mut self) -> ParseResult<Statement> {
         {
-            if self.match_token(&[VAR]) {
+            if self.match_token(&[CLASS]) {
+                self.class_declaration()
+            } else if self.match_token(&[VAR]) {
                 self.var_declaration()
             } else if self.match_token(&[FUN]) {
-                self.fun_declaration()
+                self.fun_declaration().map(|f| Statement::Function(f))
             } else {
                 self.statement()
             }
@@ -120,6 +122,20 @@ impl Parser {
             self.synchronize();
             Err(e)
         })
+    }
+
+    fn class_declaration(&mut self) -> ParseResult<Statement> {
+        let name = self.consume(IDENTIFIER, "Expect class name")?.clone();
+        self.consume(LEFT_BRACE, "Expect '{' before class body.")?;
+
+        let mut methods = Vec::new();
+        while !self.check(RIGHT_BRACE) && !self.is_at_end() {
+            methods.push(self.fun_declaration()?);
+        }
+
+        self.consume(RIGHT_BRACE, "Expect '}' after class body.")?;
+
+        Ok(Statement::class(name, methods))
     }
 
     fn var_declaration(&mut self) -> ParseResult<Statement> {
@@ -133,7 +149,7 @@ impl Parser {
         Ok(Statement::var(name, initializer))
     }
 
-    fn fun_declaration(&mut self) -> ParseResult<Statement> {
+    fn fun_declaration(&mut self) -> ParseResult<FunctionStatement> {
         let name = self.consume(IDENTIFIER, "Expect function name")?.clone();
         self.consume(LEFT_PAREN, "Expect '(' after function name")?;
         let mut params = Vec::new();
@@ -151,7 +167,7 @@ impl Parser {
         self.consume(RIGHT_PAREN, "Expect ')' after parameters")?;
         self.consume(LEFT_BRACE, "Expect '{' before function body")?;
         let body = self.block()?;
-        Ok(Statement::function(name, params, body))
+        Ok(FunctionStatement { name, params, body })
     }
 
     fn statement(&mut self) -> ParseResult<Statement> {
@@ -280,6 +296,8 @@ impl Parser {
 
             if let Expression::Variable(var) = expr {
                 return Ok(Expression::assign(var.name, value));
+            } else if let Expression::Get(get) = expr {
+                return Ok(Expression::set(get.object, get.name, value));
             }
 
             return Err(LoxError::new(equals.line, equals.lexeme, "Invalid assignment target".to_string()));
@@ -373,8 +391,15 @@ impl Parser {
     fn call(&mut self) -> ParseResult<Expression> {
         let mut expr = self.primary()?;
 
-        if self.match_token(&[LEFT_PAREN]) {
-            expr = self.finish_call(expr)?;
+        loop {
+            if self.match_token(&[LEFT_PAREN]) {
+                expr = self.finish_call(expr)?;
+            } else if self.match_token(&[DOT]) {
+                let name = self.consume(IDENTIFIER, "Expect property name after '.'")?;
+                expr = Expression::get(expr, name.clone());
+            } else {
+                break;
+            }
         }
 
         Ok(expr)
@@ -421,6 +446,7 @@ impl Parser {
                     Err(LoxError::new(line, lexeme, "Expected expression after '('".to_string()))
                 }
             },
+            THIS => Ok(Expression::this(token.clone())),
             IDENTIFIER => Ok(Expression::variable(token.clone())),
             _ => Err(LoxError::new(token.line, token.lexeme.clone(), "Expected expression".to_string()))
         }

@@ -20,6 +20,7 @@ struct Lox {
     had_error: bool,
     had_runtime_error: bool,
     interpreter: Interpreter,
+    resolver: Resolver,
 }
 
 impl Lox {
@@ -27,7 +28,8 @@ impl Lox {
         Lox {
             had_error: false,
             had_runtime_error: false,
-            interpreter: Interpreter::new()
+            interpreter: Interpreter::new(),
+            resolver: Resolver::new(),
         }
     }
 
@@ -63,7 +65,7 @@ impl Lox {
 
         match Parser::new(tokens).parse() {
             Ok(statements) => {
-                match Resolver::new().resolve(statements) {
+                match self.resolver.resolve(statements) {
                     Ok(program) => {
                         if let Err(e) = self.interpreter.interpret(&program) {
                             self.runtime_error(e);

@@ -161,9 +161,9 @@ impl Expression {
         })
     }
 
-    pub fn set(object: Expression, name: Token, value: Expression) -> Expression {
+    pub fn set(object: Box<Expression>, name: Token, value: Expression) -> Expression {
         Expression::Set(SetExpression {
-            object: Box::new(object),
+            object,
             name,
             value: Box::new(value)
         })

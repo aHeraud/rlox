@@ -1,9 +1,11 @@
 <program>     ::= <statement>* EOF ;
 
-<declaration> ::= <fun-decl> | <var-decl> | <statement>;
-<fun-decl>    ::= "fun" IDENTIFIER "(" <parameters>? ")" <block> ;
+<declaration> ::= <class-decl> | <fun-decl> | <var-decl> | <statement>;
+<class-decl>  ::= "class" IDENTIFIER "{" <function>*  "}" ;
+<fun-decl>    ::= "fun" <function> ;
 <parameters>  ::= IDENTIFIER ( "," IDENTIFIER )* ;
 <var-decl>   ::= "var" IDENTIFIER ( "=" <expression> )? ";" ;
+<function>   ::= IDENTIFIER "(" <parameters>? ")" <block> ;
 
 <statement>   ::= <expr-stmt>
                 | <print-stmt>
@@ -23,7 +25,7 @@
 <return-stmt>  ::= "return" <expression>? ";" ;
 
 <expression>  ::= <assignment> ;
-<assignment>  ::= IDENTIFIER "=" <assignment>
+<assignment>  ::= (call "." )? IDENTIFIER "=" <assignment>
                 | <logic-or> ;
 <logic-or>    ::= <logic-or> ( "or" <logic-and> )* ;
 <logic-and>   ::= <equality> ( "and" <equality> )* ;
@@ -33,7 +35,8 @@
 <factor>      ::= <unary> ( ( "/" | "*" ) <unary> )* ;
 <unary>       ::= ( "!" | "-" ) <unary>
                 | call ;
-<call>        ::= primary ( "(" arguments? ")" )* ;
+<call>        ::= primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 <primary>     ::= NUMBER | STRING | "true" | "false" | "nil"
                 | "(" expression ")"
+                | "this"
                 | IDENTIFIER ;
