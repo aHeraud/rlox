@@ -1,0 +1,13 @@
+// Lox Playground
+// Lox Language Reference: https://craftinginterpreters.com/the-lox-language.html
+//
+// When you press "Run", the code in the editor will be executed in your browser!
+
+fun fib(n) {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+print fib(10);

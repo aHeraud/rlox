@@ -97,12 +97,16 @@
         async function run() {
             await lox.default();
 
+            let defaultCode = await fetch('./default.lox').then(response => response.text());
+            document.getElementById("editor").innerHTML = defaultCode;
+
             let editor = ace.edit("editor");
             editor.setTheme("ace/theme/monokai");
 
             const runButton = document.getElementById('run');
             const output = document.getElementById('output');
 
+            // Override console.log/console.error to also append to the output textarea
             const _log = console.log;
             const _error = console.error;
 
@@ -117,6 +121,7 @@
                 _error.apply(console, arguments);
             }
 
+            // Run the code when the run button is clicked
             runButton.addEventListener('click', () => {
                 output.textContent = ""; // Clear the output
                 lox.run(editor.getValue());
