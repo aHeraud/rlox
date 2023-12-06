@@ -109,7 +109,6 @@ pub struct VariableExpression {
     pub name: Token
 }
 
-
 impl Expression {
     pub fn assign(name: Token, value: Expression) -> Expression {
         Expression::Assign(AssignmentExpression {

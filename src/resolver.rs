@@ -153,11 +153,31 @@ impl Resolve for ClassStatement {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         resolver.declare_var(&mut self.name)?;
 
+        if let Some(super_class) = self.super_class.as_mut() {
+            if super_class.name.lexeme == self.name.lexeme {
+                return Err(LoxError::new(
+                    super_class.name.line,
+                    "".to_string(),
+                    "A class cannot inherit from itself".to_string()
+                ));
+            }
+            super_class.resolve(resolver)?;
+        }
+
+        if self.super_class.is_some() {
+            resolver.push_scope();
+            resolver.register("super", "super");
+        }
+
         resolver.push_scope();
         resolver.register("this", "this");
 
         for method in self.methods.iter_mut() {
             method.resolve(resolver)?;
+        }
+
+        if self.super_class.is_some() {
+            resolver.pop_scope();
         }
 
         resolver.pop_scope();
@@ -247,10 +267,10 @@ impl Resolve for Expression {
             Expression::Literal(expr) => expr.resolve(resolver),
             Expression::Logical(expr) => expr.resolve(resolver),
             Expression::Set(expr) => expr.resolve(resolver),
+            Expression::Super(expr) => expr.resolve(resolver),
             Expression::This(expr) => expr.resolve(resolver),
             Expression::Unary(expr) => expr.resolve(resolver),
             Expression::Variable(expr) => expr.resolve(resolver),
-            _ => panic!("Unexpected expression type"),
         }
     }
 }
@@ -297,6 +317,17 @@ impl Resolve for SetExpression {
     fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
         self.object.resolve(resolver)?;
         self.value.resolve(resolver)
+    }
+}
+
+impl Resolve for SuperExpression {
+    fn resolve(&mut self, resolver: &mut Resolver) -> Result<(), LoxError> {
+        if let Some((name, _)) = resolver.resolve_var("super") {
+            self.keyword.lexeme = name.to_string();
+            Ok(())
+        } else {
+            Err(LoxError::new(self.keyword.line, "".to_string(), "Cannot use 'super' outside of a class".to_string()))
+        }
     }
 }
 
@@ -409,6 +440,15 @@ mod tests {
 
         assert_eq!(declaration(&program[0]).name.lexeme, "x");
         assert_eq!(declaration(&program[1]).name.lexeme, "x");
+    }
+
+    #[test]
+    fn disallow_inheriting_from_self() {
+        assert!(Resolver::new().resolve(
+            ast(r#"
+                class Foo < Foo {}
+                "#)
+        ).is_err());
     }
 
     fn ast(source: &str) -> Vec<Statement> {

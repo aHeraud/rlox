@@ -59,6 +59,16 @@ impl ClassDefinition {
     pub fn new(class: Rc<Class>) -> ClassDefinition {
         ClassDefinition(class)
     }
+
+    pub fn find_method(&self, name: &str) -> Option<(&Rc<Box<Closure>>, &ClassDefinition)> {
+        if let Some(method) = self.0.methods.get(name) {
+            return Some((method, self));
+        } else if let Some(super_class) = &self.0.super_class {
+            return super_class.find_method(name);
+        } else {
+            None
+        }
+    }
 }
 
 impl Clone for ClassDefinition {
@@ -76,19 +86,17 @@ impl Display for ClassDefinition {
 #[derive(Clone,Debug,PartialEq)]
 pub struct Class {
     pub name: String,
+    pub super_class: Option<ClassDefinition>,
     pub methods: HashMap<String, Rc<Box<Closure>>>,
 }
 
 impl Class {
-    pub fn new(name: String, methods: HashMap<String,Rc<Box<Closure>>>) -> Class {
+    pub fn new(name: String, super_class: Option<ClassDefinition>, methods: HashMap<String, Rc<Box<Closure>>>) -> Class {
         Class {
             name,
+            super_class,
             methods
         }
-    }
-
-    pub(crate) fn find_method(&self, name: &str) -> Option<Rc<Box<Closure>>> {
-        self.methods.get(name).cloned()
     }
 }
 
@@ -143,12 +151,12 @@ impl PartialEq for InstanceReference {
 
 #[derive(Clone,Debug)]
 pub struct Instance {
-    class: Rc<Class>,
+    class: ClassDefinition,
     fields: HashMap<String, Value>,
 }
 
 impl Instance {
-    pub fn new(class: Rc<Class>) -> Instance {
+    pub fn new(class: ClassDefinition) -> Instance {
         Instance {
             class,
             fields: HashMap::new(),
@@ -158,8 +166,8 @@ impl Instance {
     pub fn get(&self, name: &Token, reference: &InstanceReference) -> Result<Value, RuntimeError> {
         if let Some(value) = self.fields.get(&name.lexeme) {
             Ok(value.clone())
-        } else if let Some(closure) = self.class.methods.get(&name.lexeme) {
-            let method = Method::new(reference.clone(), closure.clone());
+        } else if let Some((closure, class)) = self.class.find_method(&name.lexeme) {
+            let method = Method::new(reference.clone(), class.clone(), closure.clone());
             Ok(Value::Function(Rc::new(Box::new(method))))
         } else {
             Err(RuntimeError::new(
@@ -183,6 +191,6 @@ impl PartialEq for Instance {
 
 impl Display for Instance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} instance", self.class.name)
+        write!(f, "{} instance", self.class.0.name)
     }
 }

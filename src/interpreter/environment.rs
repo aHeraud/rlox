@@ -38,6 +38,10 @@ impl Environment {
         self.get_mut().get_var(name)
     }
 
+    pub fn lookup(&self, name: &str) -> Option<&Value> {
+        self.get().lookup(name)
+    }
+
     fn get(&self) -> &InternalEnvironment {
         unsafe { &*self.0.get() }
     }
@@ -99,6 +103,16 @@ impl InternalEnvironment {
                 name.clone(),
                 format!("Undefined variable '{}'", name.lexeme)
             ))
+        }
+    }
+
+    pub fn lookup(&self, name: &str) -> Option<&Value> {
+        if let Some(value) = self.values.get(name) {
+            Some(value)
+        } else if let Some(parent) = &self.enclosing {
+            parent.lookup(name)
+        } else {
+            None
         }
     }
 }

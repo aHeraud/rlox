@@ -1,4 +1,4 @@
-use crate::ast::expressions::Expression;
+use crate::ast::expressions::{Expression, VariableExpression};
 use crate::token::Token;
 
 #[derive(Clone,Debug,PartialEq)]
@@ -17,6 +17,7 @@ pub enum Statement {
 #[derive(Clone,Debug,PartialEq)]
 pub struct ClassStatement {
     pub name: Token,
+    pub super_class: Option<VariableExpression>,
     pub methods: Vec<FunctionStatement>,
 }
 
@@ -68,8 +69,8 @@ pub struct ReturnStatement {
 }
 
 impl Statement {
-    pub fn class(name: Token, methods: Vec<FunctionStatement>) -> Statement {
-        Statement::Class(ClassStatement { name, methods })
+    pub fn class(name: Token, super_class: Option<VariableExpression>, methods: Vec<FunctionStatement>) -> Statement {
+        Statement::Class(ClassStatement { name, super_class, methods })
     }
 
     pub fn expression(expression: Expression) -> Statement {
@@ -100,6 +101,7 @@ impl Statement {
         Statement::While(WhileStatement { condition, body })
     }
 
+    #[allow(dead_code)]
     pub fn function(name: Token, params: Vec<Token>, body: Vec<Statement>) -> Statement {
         Statement::Function(FunctionStatement { name, params, body })
     }

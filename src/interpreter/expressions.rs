@@ -1,7 +1,8 @@
 use std::ops::Neg;
+use std::rc::Rc;
 use crate::ast::expressions::*;
 use crate::error::RuntimeError;
-use crate::interpreter::function::Function;
+use crate::interpreter::function::{Function, Method};
 use crate::token::{Token, TokenType::*};
 use super::{Value, Environment, Evaluate, InterpreterError};
 
@@ -180,6 +181,24 @@ impl Evaluate<Value> for SetExpression {
     }
 }
 
+impl Evaluate<Value> for SuperExpression {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+        let instance = match environment.lookup("this") {
+            Some(Value::Instance(instance)) => instance.clone(),
+            _ => panic!("Super outside of method definition")
+        };
+        let class = match environment.get_var(&self.keyword)? {
+            Value::Class(class) => class.clone(),
+            _ => panic!("Super must refer to a class definition")
+        };
+
+        let superclass = class.0.super_class.clone().unwrap();
+        let (method, class) = superclass.find_method(&self.method.lexeme).unwrap();
+        let method = Method::new(instance.clone(), class.clone(), method.clone());
+        Ok(Value::Function(Rc::new(Box::new(method))))
+    }
+}
+
 impl Evaluate<Value> for ThisExpression {
     fn evaluate(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         environment.get_var(&self.keyword)
@@ -198,11 +217,11 @@ impl Evaluate<Value> for Expression {
             Expression::Grouping(g) => g.evaluate(env),
             Expression::Literal(l) => l.evaluate(env),
             Expression::Set(s) => s.evaluate(env),
+            Expression::Super(s) => s.evaluate(env),
             Expression::This(t) => t.evaluate(env),
             Expression::Unary(u) => u.evaluate(env),
             Expression::Variable(v) => v.evaluate(env),
             Expression::Logical(l) => l.evaluate(env),
-            _ => panic!("Unexpected expression") // unreachable
         }
     }
 }

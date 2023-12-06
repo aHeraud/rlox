@@ -83,7 +83,7 @@ impl PartialEq for Closure {
 impl Function for ClassDefinition {
     fn arity(&self) -> usize {
         println!("Methods: {:?}", self.0.methods);
-        self.0.find_method("init").map_or(0, |m| m.arity())
+        self.find_method("init").map_or(0, |(m,_c)| m.arity())
     }
 
     fn name(&self) -> &str {
@@ -91,11 +91,11 @@ impl Function for ClassDefinition {
     }
 
     fn call(&self, arguments: &[Value]) -> Result<Value, RuntimeError> {
-        if let Some(initializer) = self.0.find_method("init") {
-            let initializer = Method::new(InstanceReference::new(Instance::new(Rc::clone(&self.0))), initializer);
+        let instance = Instance::new(self.clone());
+        if let Some((initializer, _)) = self.find_method("init") {
+            let initializer = Method::new(InstanceReference::new(instance), self.clone(), Rc::clone(initializer));
             initializer.call(arguments)
         } else {
-            let instance = Instance::new(Rc::clone(&self.0));
             Ok(Value::Instance(InstanceReference::new(instance)))
         }
     }
@@ -104,13 +104,15 @@ impl Function for ClassDefinition {
 #[derive(Debug)]
 pub struct Method {
     this: InstanceReference,
+    class: ClassDefinition,
     closure: Rc<Box<Closure>>
 }
 
 impl Method {
-    pub fn new(this: InstanceReference, closure: Rc<Box<Closure>>) -> Method {
+    pub fn new(this: InstanceReference, class: ClassDefinition, closure: Rc<Box<Closure>>) -> Method {
         Method {
             this,
+            class,
             closure
         }
     }
@@ -128,6 +130,7 @@ impl Function for Method {
     fn call(&self, arguments: &[Value]) -> Result<Value, RuntimeError> {
         let mut env = Environment::new().with_enclosing(self.closure.environment.clone());
         env.define("this", Value::Instance(self.this.clone()));
+        env.define("super", Value::Class(self.class.clone()));
         let return_value = run(&self.closure.function, &mut env, arguments)?;
 
         if self.name() == "init" {
@@ -142,6 +145,7 @@ impl Clone for Method {
     fn clone(&self) -> Self {
         Method {
             this: self.this.clone(),
+            class: self.class.clone(),
             closure: Rc::clone(&self.closure)
         }
     }

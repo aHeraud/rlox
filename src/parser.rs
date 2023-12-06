@@ -126,6 +126,14 @@ impl Parser {
 
     fn class_declaration(&mut self) -> ParseResult<Statement> {
         let name = self.consume(IDENTIFIER, "Expect class name")?.clone();
+
+        let super_class = if self.match_token(&[LESS]) {
+            self.consume(IDENTIFIER, "Expect superclass name")?;
+            Some(VariableExpression { name: self.previous().clone() })
+        } else {
+            None
+        };
+
         self.consume(LEFT_BRACE, "Expect '{' before class body.")?;
 
         let mut methods = Vec::new();
@@ -135,7 +143,7 @@ impl Parser {
 
         self.consume(RIGHT_BRACE, "Expect '}' after class body.")?;
 
-        Ok(Statement::class(name, methods))
+        Ok(Statement::class(name, super_class, methods))
     }
 
     fn var_declaration(&mut self) -> ParseResult<Statement> {
@@ -448,6 +456,12 @@ impl Parser {
             },
             THIS => Ok(Expression::this(token.clone())),
             IDENTIFIER => Ok(Expression::variable(token.clone())),
+            SUPER => {
+                let token = token.clone();
+                self.consume(DOT, "Expect '.' after 'super'")?;
+                let method = self.consume(IDENTIFIER, "Expect superclass method name")?;
+                Ok(Expression::super_(token.clone(), method.clone()))
+            },
             _ => Err(LoxError::new(token.line, token.lexeme.clone(), "Expected expression".to_string()))
         }
     }

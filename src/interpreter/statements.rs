@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use crate::ast::statements::*;
+use crate::error::RuntimeError;
 use crate::interpreter::function::Closure;
 use crate::interpreter::value::ClassDefinition;
 use crate::interpreter::value::Value::Class;
@@ -49,6 +50,20 @@ impl Evaluate<()> for BlockStatement {
 
 impl Evaluate<()> for ClassStatement {
     fn evaluate(&self, environment: &mut Environment) -> Result<(), InterpreterError> {
+        let super_class = if let Some(super_class) = &self.super_class {
+            match super_class.evaluate(environment) {
+                Ok(Value::Class(c)) => Ok(Some(c.clone())),
+                _ => Err(InterpreterError::Runtime(
+                    RuntimeError::new(
+                        super_class.name.clone(),
+                        "Superclass must be a class".to_string()
+                    )
+                ))
+            }?
+        } else {
+            None
+        };
+
         let mut methods: HashMap<String, Rc<Box<Closure>>> = HashMap::new();
         for method in &self.methods {
             let closure = Box::new(Closure {
@@ -58,7 +73,7 @@ impl Evaluate<()> for ClassStatement {
             methods.insert(method.name.lexeme.clone(), Rc::new(closure));
         }
 
-        let class = value::Class::new(self.name.lexeme.clone(), methods);
+        let class = value::Class::new(self.name.lexeme.clone(), super_class, methods);
         environment.define(&self.name.lexeme, Class(ClassDefinition::new(Rc::new(class))));
         Ok(())
     }

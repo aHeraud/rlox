@@ -1,7 +1,7 @@
 <program>     ::= <statement>* EOF ;
 
 <declaration> ::= <class-decl> | <fun-decl> | <var-decl> | <statement>;
-<class-decl>  ::= "class" IDENTIFIER "{" <function>*  "}" ;
+<class-decl>  ::= "class" IDENTIFIER ( "<" IDENTIFIER )? "{" <function>*  "}" ;
 <fun-decl>    ::= "fun" <function> ;
 <parameters>  ::= IDENTIFIER ( "," IDENTIFIER )* ;
 <var-decl>   ::= "var" IDENTIFIER ( "=" <expression> )? ";" ;
@@ -39,4 +39,5 @@
 <primary>     ::= NUMBER | STRING | "true" | "false" | "nil"
                 | "(" expression ")"
                 | "this"
+                | "super" "." IDENTIFIER
                 | IDENTIFIER ;
