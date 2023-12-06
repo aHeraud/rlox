@@ -30,6 +30,22 @@ impl Display for LoxError {
 impl Error for LoxError {}
 
 #[derive(Debug)]
+pub struct ScanErrors {
+    pub errors: Vec<LoxError>
+}
+
+impl Display for ScanErrors {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        for error in &self.errors {
+            write!(f, "{}\n", error)?;
+        }
+        Ok(())
+    }
+}
+
+impl Error for ScanErrors {}
+
+#[derive(Debug)]
 pub struct ParseErrors {
     pub errors: Vec<LoxError>
 }

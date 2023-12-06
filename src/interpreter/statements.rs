@@ -14,10 +14,22 @@ impl Evaluate<()> for ExpressionStatement {
     }
 }
 
+#[cfg(not (target_arch = "wasm32"))]
 impl Evaluate<()> for PrintStatement {
     fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
         let value = self.expression.evaluate(env)?;
         println!("{}", value);
+        Ok(())
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Evaluate<()> for PrintStatement {
+    fn evaluate(&self, env: &mut Environment) -> Result<(), InterpreterError> {
+        use web_sys::console;
+
+        let value = self.expression.evaluate(env)?;
+        console::log_1(&format!("{}", value).into());
         Ok(())
     }
 }

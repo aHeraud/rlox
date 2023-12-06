@@ -1,4 +1,4 @@
-use crate::error::LoxError;
+use crate::error::{LoxError, ScanErrors};
 use super::token::{Token, TokenType};
 
 pub struct Scanner {
@@ -23,13 +23,18 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(mut self) -> (Vec<Token>, Vec<LoxError>) {
+    pub fn scan_tokens(mut self) -> Result<Vec<Token>, ScanErrors> {
         while !self.is_at_end() {
             self.scan_token();
         }
 
         self.add_token(TokenType::EOF);
-        (self.tokens, self.errors)
+
+        if self.errors.len() > 0 {
+            Err(ScanErrors { errors: self.errors })
+        } else {
+            Ok(self.tokens)
+        }
     }
 
     fn scan_token(&mut self) {
@@ -205,7 +210,7 @@ mod tests {
     fn test_scan_reserved_words() {
         let source = String::from("and class else false fun for if nil or print return super this true var while");
         let scanner = Scanner::new(source);
-        let tokens: Vec<TokenType> = scanner.scan_tokens().0
+        let tokens: Vec<TokenType> = scanner.scan_tokens().unwrap()
             .into_iter()
             .map(|t| t.token_type)
             .collect();
@@ -219,7 +224,7 @@ mod tests {
     fn test_scan_identifier() {
         let source = String::from("foo");
         let scanner = Scanner::new(source);
-        let tokens: Vec<TokenType> = scanner.scan_tokens().0
+        let tokens: Vec<TokenType> = scanner.scan_tokens().unwrap()
             .into_iter()
             .map(|t| t.token_type)
             .collect();
@@ -229,7 +234,7 @@ mod tests {
     #[test]
     fn test_scan_string_literal() {
         let source = String::from("\"yoshi, dinosaur\"");
-        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().0
+        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().unwrap()
             .into_iter()
             .map(|t| t.token_type)
             .collect();
@@ -239,7 +244,7 @@ mod tests {
     #[test]
     fn test_scan_integer() {
         let source = String::from("123");
-        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().0
+        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().unwrap()
             .into_iter()
             .map(|t| t.token_type)
             .collect();
@@ -249,7 +254,7 @@ mod tests {
     #[test]
     fn test_scan_float() {
         let source = String::from("123.456");
-        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().0
+        let tokens: Vec<TokenType> = Scanner::new(source).scan_tokens().unwrap()
             .into_iter()
             .map(|t| t.token_type)
             .collect();
