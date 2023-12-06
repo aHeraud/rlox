@@ -41,7 +41,7 @@ To build the browser-based playground, you'll need to install `wasm-pack` and th
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli
 wasm-pack build --target web
-cp pkg/rlox.js doc/
-cp pkg/rlox_bg.wasm doc/
+cp pkg/rlox.js docs/
+cp pkg/rlox_bg.wasm docs/
 rm -rf pkg/
 ```
