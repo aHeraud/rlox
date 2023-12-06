@@ -2,6 +2,9 @@
 
 An interpreter for the Lox language from [Crafting Interpreters](https://craftinginterpreters.com/).
 
+## Playground
+
+A browser-based playground is available at [https://aheraud.github.io/rlox](https://aheraud.github.io/rlox).
 
 ## Usage
 
@@ -31,7 +34,7 @@ cargo build --release
 
 ### Playground
 
-To build the web-based playground, you'll need to install `wasm-pack` and the `wam32-uknown-unknown` target.
+To build the browser-based playground, you'll need to install `wasm-pack` and the `wam32-uknown-unknown` target.
 
 
 ```bash
